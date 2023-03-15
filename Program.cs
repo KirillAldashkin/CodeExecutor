@@ -9,6 +9,7 @@ await Host.CreateDefaultBuilder(args)
         .AddSingleton(sp => sp.GetRequiredService<IConfiguration>().Get<Options>()!)
         .AddHostedService<EntryService>()
         .AddSingleton<DiscordService>()
+        .AddSingleton<FunService>()
         .AddSingleton<CoderService>()
         .AddSingleton<ExecuteService>())
     .RunConsoleAsync();
