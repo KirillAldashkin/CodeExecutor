@@ -1,5 +1,6 @@
 ﻿namespace CodeExecutor;
 
+#pragma warning disable 8618
 internal class Options
 {
     public string CommandPrefix { get; set; }
@@ -8,3 +9,4 @@ internal class Options
     public string ExecuteWorkingDirectory { get; set; }
     public int ExecuteProgramTimeoutMillis { get; set; }
 }
+#pragma warning restore 8618

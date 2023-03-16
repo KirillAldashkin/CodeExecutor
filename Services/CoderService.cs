@@ -7,18 +7,13 @@ internal class CoderService
     private readonly ExecuteService execute;
     private readonly Options options;
 
-    public CoderService(DiscordService discord, ExecuteService execute, Options options)
+    public CoderService(ExecuteService execute, Options options)
     {
-        discord.AddHandler("exec help", PrintHelp);
-        discord.AddHandler("exec info", PrintVersions);
-        discord.AddHandler("exec python", ExecutePython);
-        discord.AddHandler("exec csharp", ExecuteCSharp);
-        discord.AddHandler("exec c", ExecuteC);
         this.execute = execute;
         this.options = options;
     }
 
-    private async Task PrintVersions(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task PrintVersions(ReadOnlyMemory<char> text, DiscordMessage message)
     {
         var pythonInfo = await execute.Execute("python3", "--version");
         var cInfo = await execute.Execute("gcc", "--version");
@@ -31,7 +26,7 @@ internal class CoderService
             """);
     }
 
-    private async Task ExecutePython(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task ExecutePython(ReadOnlyMemory<char> text, DiscordMessage message)
     {
         if (text.Span.StartsWith("```python") && text.Span.EndsWith("```")) text = text[9..^3].Trim();
         else if (text.Span.StartsWith("```py") && text.Span.EndsWith("```")) text = text[5..^3].Trim();
@@ -47,7 +42,7 @@ internal class CoderService
         File.Delete(path);
     }
 
-    private async Task ExecuteCSharp(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task ExecuteCSharp(ReadOnlyMemory<char> text, DiscordMessage message)
     {
         if (text.Span.StartsWith("```cs") && text.Span.EndsWith("```")) text = text[5..^3].Trim();
         var msg = await message.RespondAsync($"Компилируем...");
@@ -72,7 +67,7 @@ internal class CoderService
         Directory.Delete(projectDir, true);
     }
 
-    private async Task ExecuteC(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task ExecuteC(ReadOnlyMemory<char> text, DiscordMessage message)
     {
         if (text.Span.StartsWith("```c") && text.Span.EndsWith("```")) text = text[4..^3].Trim();
         var msg = await message.RespondAsync($"Компилируем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
@@ -97,7 +92,7 @@ internal class CoderService
         File.Delete(exePath);
     }
 
-    private async Task PrintHelp(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task PrintHelp(ReadOnlyMemory<char> text, DiscordMessage message)
     {
         var p = options.CommandPrefix;
         await message.RespondAsync($"""

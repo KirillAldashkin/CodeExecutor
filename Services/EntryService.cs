@@ -9,7 +9,7 @@ internal class EntryService : IHostedService
     private readonly ILogger<EntryService> logger;
     private readonly Options options;
 
-    public EntryService(DiscordService discord, ILogger<EntryService> logger, Options options, CoderService coder, FunService fun)
+    public EntryService(DiscordService discord, ILogger<EntryService> logger, Options options)
     {
         this.discord = discord;
         this.logger = logger;
