@@ -33,6 +33,7 @@ internal class CommandsService
         AddHandler("exec info", coder.PrintVersions);
         AddHandler("exec python", coder.ExecutePython);
         AddHandler("exec csharp", coder.ExecuteCSharp);
+        AddHandler("exec java", coder.ExecuteJava);
         AddHandler("exec c", coder.ExecuteC);
 
         return HandleCommand;
@@ -53,7 +54,7 @@ internal class CommandsService
             pair.Value(cmd[pair.Key.Length..].TrimStart(), e.Message).ContinueWith(task =>
             {
                 if (task.Exception is null) return;
-                logger.LogError(task.Exception, "Command {Command} thrown an exception", pair.Key);
+                logger.LogError(task.Exception, "Command '{Command}' thrown an exception", pair.Key);
             });
             break;
         }

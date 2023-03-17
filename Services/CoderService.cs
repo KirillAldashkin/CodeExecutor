@@ -4,6 +4,8 @@ namespace CodeExecutor.Services;
 
 internal class CoderService
 {
+    private const string JavaMainClass = "Program";
+
     private readonly ExecuteService execute;
     private readonly Options options;
 
@@ -17,12 +19,14 @@ internal class CoderService
     {
         var pythonInfo = await execute.Execute("python3", "--version");
         var cInfo = await execute.Execute("gcc", "--version");
+        var javaInfo = await execute.Execute("java", "--version");
         var dotnetInfo = Environment.Version.ToString();
 
         await message.RespondAsync($"""
             {pythonInfo?.StdOut.ReadLine() ?? "~~Python недоступен~~"}
             .NET {dotnetInfo}
             {cInfo?.StdOut.ReadLine() ?? "~~GCC недоступен~~"}
+            {javaInfo?.StdOut.ReadLine() ?? "~~Java недоступна~~"}
             """);
     }
 
@@ -32,7 +36,7 @@ internal class CoderService
         else if (text.Span.StartsWith("```py") && text.Span.EndsWith("```")) text = text[5..^3].Trim();
         var msg = await message.RespondAsync($"Выполняем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
 
-        var path = Path.Combine(Path.GetTempPath(), $"python{Environment.TickCount64}temp.py");
+        var path = Path.Combine(options.ExecuteWorkingDirectory, $"python{Environment.TickCount64}temp.py");
         var str = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
         File.WriteAllText(path, str);
 
@@ -72,8 +76,8 @@ internal class CoderService
         if (text.Span.StartsWith("```c") && text.Span.EndsWith("```")) text = text[4..^3].Trim();
         var msg = await message.RespondAsync($"Компилируем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
 
-        var srcPath = Path.Combine(Path.GetTempPath(), $"c{Environment.TickCount64}temp.c");
-        var exePath = Path.Combine(Path.GetTempPath(), $"c{Environment.TickCount64}temp");
+        var srcPath = Path.Combine(options.ExecuteWorkingDirectory, $"c{Environment.TickCount64}temp.c");
+        var exePath = Path.Combine(options.ExecuteWorkingDirectory, $"c{Environment.TickCount64}temp");
         var src = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
 
         File.WriteAllText(srcPath, src);
@@ -86,21 +90,40 @@ internal class CoderService
             return;
         }
 
+        await msg.ModifyAsync($"Запускаем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
         var runResult = await execute.Execute(exePath, "");
         await msg.ModifyAsync(FormatResult(runResult));
         File.Delete(srcPath);
         File.Delete(exePath);
     }
 
-    public async Task PrintHelp(ReadOnlyMemory<char> text, DiscordMessage message)
+    public async Task ExecuteJava(ReadOnlyMemory<char> text, DiscordMessage message)
+    {
+        if (text.Span.StartsWith("```java") && text.Span.EndsWith("```")) text = text[7..^3].Trim();
+        var msg = await message.RespondAsync($"Запускаем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
+
+        var folder = Path.Combine(options.ExecuteWorkingDirectory, $"java{Environment.TickCount64}temp");
+        var srcPath = Path.Combine(folder, $"{JavaMainClass}.java");
+        var src = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
+    
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(srcPath, src);
+    
+        var runResult = await execute.Execute("java", srcPath);
+        await msg.ModifyAsync(FormatResult(runResult));
+        Directory.Delete(folder, true);
+    }
+
+    public async Task PrintHelp(ReadOnlyMemory<char> _, DiscordMessage message)
     {
         var p = options.CommandPrefix;
         await message.RespondAsync($"""
             `{p}exec help` - отображает данную справку
             `{p}exec info` - отображает сведения об используемых средах
-            `{p}exec python` - выполняет код на Python
-            `{p}exec csharp` - выполняет код на C#
-            `{p}exec c` - выполняет код на C
+            `{p}exec python` - выполняет Python код
+            `{p}exec csharp` - выполняет C# код
+            `{p}exec java` - выполняет Java код (главный класс - `{JavaMainClass}`)
+            `{p}exec c` - выполняет C код
             """);
     }
 
