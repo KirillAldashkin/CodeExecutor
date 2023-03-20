@@ -1,4 +1,5 @@
 ﻿using DSharpPlus.Entities;
+using System.Xml;
 
 namespace CodeExecutor.Services;
 
@@ -17,9 +18,10 @@ internal class CoderService
 
     public async Task PrintVersions(ReadOnlyMemory<char> text, DiscordMessage message)
     {
-        var pythonInfo = await execute.Execute("python3", "--version");
-        var cInfo = await execute.Execute("gcc", "--version");
-        var javaInfo = await execute.Execute("java", "--version");
+        var pythonTask = execute.Execute("python3", "--version");
+        var cTask = execute.Execute("gcc", "--version");
+        var javaTask = execute.Execute("java", "--version");
+        var (pythonInfo, cInfo, javaInfo) = (await pythonTask, await cTask, await javaTask);
         var dotnetInfo = Environment.Version.ToString();
 
         await message.RespondAsync($"""
@@ -37,8 +39,7 @@ internal class CoderService
         var msg = await message.RespondAsync($"Выполняем... (таймаут {options.ExecuteProgramTimeoutMillis / 1000} секунд)");
 
         var path = Path.Combine(options.ExecuteWorkingDirectory, $"python{Environment.TickCount64}temp.py");
-        var str = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
-        File.WriteAllText(path, str);
+        await WriteFile(path, text);
 
         var res = await execute.Execute("python3", path);
 
@@ -61,10 +62,16 @@ internal class CoderService
 
         var projectDir = Path.Combine(options.ExecuteWorkingDirectory, dir);
         var srcPath = Path.Combine(projectDir, "Program.cs");
-        var src = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
-        File.WriteAllText(srcPath, src);
+        await WriteFile(srcPath, text);
 
         var projectPath = Path.Combine(projectDir, $"{dir}.csproj");
+        var projectXml = new XmlDocument();
+        projectXml.Load(projectPath);
+        var blocks = projectXml.CreateElement("AllowUnsafeBlocks");
+        blocks.InnerText = "true";
+        projectXml["Project"]!["PropertyGroup"]!.AppendChild(blocks);
+        projectXml.Save(projectPath);
+
         var runRes = await execute.Execute("dotnet", $"run -c Release --project {projectPath}");
         await msg.ModifyAsync(FormatResult(runRes));
 
@@ -78,9 +85,8 @@ internal class CoderService
 
         var srcPath = Path.Combine(options.ExecuteWorkingDirectory, $"c{Environment.TickCount64}temp.c");
         var exePath = Path.Combine(options.ExecuteWorkingDirectory, $"c{Environment.TickCount64}temp");
-        var src = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
 
-        File.WriteAllText(srcPath, src);
+        await WriteFile(srcPath, text);
         var compileResult = await execute.Execute("gcc", $"-o {exePath} {srcPath}");
         if(!compileResult.HasValue || compileResult.Value.ExitCode != 0)
         {
@@ -104,11 +110,10 @@ internal class CoderService
 
         var folder = Path.Combine(options.ExecuteWorkingDirectory, $"java{Environment.TickCount64}temp");
         var srcPath = Path.Combine(folder, $"{JavaMainClass}.java");
-        var src = string.Create(text.Length, text, (s, m) => m.Span.CopyTo(s));
-    
+
         Directory.CreateDirectory(folder);
-        File.WriteAllText(srcPath, src);
-    
+        await WriteFile(srcPath, text);
+
         var runResult = await execute.Execute("java", srcPath);
         await msg.ModifyAsync(FormatResult(runResult));
         Directory.Delete(folder, true);
@@ -116,14 +121,14 @@ internal class CoderService
 
     public async Task PrintHelp(ReadOnlyMemory<char> _, DiscordMessage message)
     {
-        var p = options.CommandPrefix;
+        var p = $"{options.CommandPrefix}exec";
         await message.RespondAsync($"""
-            `{p}exec help` - отображает данную справку
-            `{p}exec info` - отображает сведения об используемых средах
-            `{p}exec python` - выполняет Python код
-            `{p}exec csharp` - выполняет C# код
-            `{p}exec java` - выполняет Java код (главный класс - `{JavaMainClass}`)
-            `{p}exec c` - выполняет C код
+            `{p} help` - отображает данную справку
+            `{p} info` - отображает сведения об используемых средах
+            `{p} python` - выполняет Python код
+            `{p} csharp` - выполняет C# код
+            `{p} java` - выполняет Java код (главный класс - `{JavaMainClass}`)
+            `{p} c` - выполняет C код
             """);
     }
 
@@ -135,8 +140,16 @@ internal class CoderService
         var error = data.Value.error.ReadToEnd();
         return $"""
                 Код возврата: `{data.Value.code}`
-                stdout: {(string.IsNullOrWhiteSpace(output) ? "_ничего_" : $"```{output}```")}
-                stderr: {(string.IsNullOrWhiteSpace(error) ? "_ничего_" : $"```{error}```")}
+                stdout: {WrapTextBlock(output)}
+                stderr: {WrapTextBlock(error)}
                 """;
+
+        static string WrapTextBlock(string? text) => string.IsNullOrWhiteSpace(text) ? "_ничего_" : $"```{text}```";
+    }
+
+    private static async Task WriteFile(string path, ReadOnlyMemory<char> data)
+    {
+        using var stream = new StreamWriter(path, false);
+        await stream.WriteAsync(data);
     }
 }
