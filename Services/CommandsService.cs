@@ -26,6 +26,7 @@ internal class CommandsService
 
     public AsyncEventHandler<DiscordClient, MessageCreateEventArgs> Setup()
     {
+        AddHandler("кто", fun.WhoIs);
         AddHandler("шанс", fun.GetChance("Шанс"));
         AddHandler("вероятность", fun.GetChance("Вероятность"));
 
@@ -51,7 +52,8 @@ internal class CommandsService
         foreach (var pair in handlers)
         {
             if (!cmd.Span.StartsWith(pair.Key)) continue;
-            pair.Value(cmd[pair.Key.Length..].TrimStart(), e.Message).ContinueWith(task =>
+            if (cmd.Length > pair.Key.Length && !char.IsWhiteSpace(cmd.Span[pair.Key.Length])) continue;
+            pair.Value(cmd[pair.Key.Length..].Trim(), e.Message).ContinueWith(task =>
             {
                 if (task.Exception is null) return;
                 logger.LogError(task.Exception, "Command '{Command}' thrown an exception", pair.Key);
